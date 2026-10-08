@@ -1,0 +1,7 @@
+/* Sidecar and pasted LRC parsing plus a minimal ID3v2 USLT reader. */
+(function(g){'use strict';
+ // Parse timestamps into sorted seconds/text pairs for binary-search playback.
+ function parse(text){const rows=[];String(text).split(/\r?\n/).forEach(line=>{const re=/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]\s*(.*)/g;let m;while((m=re.exec(line))){rows.push({time:+m[1]*60 + +m[2] + (m[3]?Number('0.'+m[3]):0),text:m[4]});}});return rows.sort((a,b)=>a.time-b.time);}
+ // Read ID3v2 frames directly and return USLT text when present.
+ function embedded(file){return new Promise(resolve=>{if(!file||typeof file.slice!=='function')return resolve('');const r=new FileReader();r.onerror=()=>resolve('');r.onload=()=>{try{const b=new DataView(r.result),u8=new Uint8Array(r.result);if(u8[0]!==73||u8[1]!==68||u8[2]!==51)return resolve('');const version=u8[3],size=(u8[6]<<21)|(u8[7]<<14)|(u8[8]<<7)|u8[9];let i=10;while(i<10+size){const id=String.fromCharCode(...u8.slice(i,i+4));const n=version===4?((u8[i+4]<<21)|(u8[i+5]<<14)|(u8[i+6]<<7)|u8[i+7]):b.getUint32(i+4);if(!id.trim()||!n)break;if(id==='USLT'){const start=i+11,encoding=u8[i+10],bytes=u8.slice(start,i+10+n);return resolve(new TextDecoder(encoding===1?'utf-16':'utf-8').decode(bytes).replace(/\0/g,''));}i+=10+n;}resolve('');}catch(e){resolve('');}};try{r.readAsArrayBuffer(file.slice(0,2*1024*1024));}catch(e){resolve('');}});}
+ g.ObsidianLyrics={parse,embedded};})(window);

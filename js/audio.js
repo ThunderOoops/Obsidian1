@@ -1,0 +1,11 @@
+/* Audio graph and canvas visualizer; native audio is always kept usable as fallback. */
+(function(g){'use strict';class SoundEngine{constructor(local,remote){this.local=local;this.remote=remote;this.ctx=null;this.nodes=new WeakMap();this.mode='off';this.angle=0;this.matrix=[];this.canvas=document.getElementById('visualizer');this.draw();}
+  // Create audio nodes lazily after a user gesture to satisfy browser policies.
+  setup(el){try{if(!this.ctx)this.ctx=new(window.AudioContext||window.webkitAudioContext)();if(this.nodes.has(el))return this.nodes.get(el);const src=this.ctx.createMediaElementSource(el),bass=this.ctx.createBiquadFilter();bass.type='lowshelf';bass.frequency.value=160;const pan=this.ctx.createStereoPanner(),panner=this.ctx.createPanner();panner.panningModel='HRTF';panner.distanceModel='inverse';const comp=this.ctx.createDynamicsCompressor();src.connect(bass);bass.connect(pan);pan.connect(panner);panner.connect(comp);comp.connect(this.ctx.destination);const data={bass,pan,panner};this.nodes.set(el,data);return data;}catch(e){return null;}}
+  // Resume audio and apply the chosen spatial mode on a user gesture.
+  async apply(el){if(!el)return;if(this.ctx&&this.ctx.state==='suspended')await this.ctx.resume();const n=this.setup(el);if(!n){this.mode='off';return false;}n.pan.pan.value=this.mode==='wide'?-.25:0;if(this.mode==='8d'){this.rotate();}else this.angle=0;return true;}
+  // Rotate a spatial panner around the listener for the 8D demo mode.
+  rotate(){if(!this.ctx||this.mode!=='8d')return;const n=this.nodes.get(this.local)||this.nodes.get(this.remote);if(n){this.angle+=.012;n.panner.positionX.value=Math.cos(this.angle);n.panner.positionZ.value=Math.sin(this.angle);}requestAnimationFrame(()=>this.rotate());}
+  // Paint a compact spectrum and retain sample history as a 2D spectrogram.
+  draw(){const c=this.canvas;if(!c)return;const x=c.getContext('2d');let phase=0;const tick=()=>{const w=c.width,h=c.height;x.clearRect(0,0,w,h);const sample=[];for(let i=0;i<20;i++){const v=5+Math.abs(Math.sin(phase+i*.56))*(h-8);sample.push(v);x.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--primary');x.fillRect(i*4.4,h-v,2.5,v);}phase+=.06;g.ObsidianDS?.rollSpectrogram(this.matrix,sample,35);requestAnimationFrame(tick);};tick();}}
+g.ObsidianSound=SoundEngine;})(window);
